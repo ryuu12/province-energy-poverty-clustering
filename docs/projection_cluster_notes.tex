@@ -1,0 +1,217 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{geometry}
+\usepackage{titlesec}
+\usepackage{xcolor}
+\usepackage{enumitem}
+
+\geometry{margin=2.5cm}
+\setlength{\parskip}{4pt}
+\hypersetup{colorlinks=true, linkcolor=blue!60!black, citecolor=blue!60!black, urlcolor=blue!70!black}
+
+\title{\textbf{Technical Note: Mathematical Formulation of Data Projection and Silhouette Cluster Analysis}\\[0.3cm]
+\large \textit{Supporting Document --- Not Peer-Reviewed}}
+\author{
+\textbf{Rayhan Rusyd}\\[2pt]
+Department of Engineering Physics, Faculty of Industrial Technology\\
+Institut Teknologi Bandung\\[2pt]
+}
+\date{}
+
+\begin{document}
+\maketitle
+
+% ============================================================
+\section*{Scope and Disclaimer}
+\addcontentsline{toc}{section}{Scope and Disclaimer}
+
+\noindent
+\textbf{Document Status.} This document publishes a small, fully reproducible slice of an ongoing \textbf{undergraduate thesis} on residential cooling energy poverty in Indonesia. \textbf{It is not peer-reviewed.} It is compiled as a supporting technical note to explain the mathematical formulations behind the two main stages of the research: (i) data projection to the year 2050, and (ii) silhouette-based cluster analysis. All final projected values and cluster memberships remain subject to validation and the main thesis writing process.
+
+\noindent
+\textbf{Research Context.} For each province $i \in \{1,\dots,34\}$, an energy poverty metric is defined as:
+\begin{equation}
+\mathrm{EP}_{i,t} \;=\; E_{\mathrm{sim},\,i,t} \;-\; E_{\mathrm{RUPTL},\,i,t}
+\quad \text{[kWh/customer/year],}
+\label{eq:ep}
+\end{equation}
+where $E_{\mathrm{sim}}$ is the cooling energy consumption resulting from an EnergyPlus simulation of a residential building archetype, and $E_{\mathrm{RUPTL}}$ is the per-customer normalized residential consumption according to the National Electricity Supply Business Plan (RUPTL). An $\mathrm{EP}>0$ indicates unmet cooling needs (\emph{suppressed demand}). This metric is paired with the urbanization ratio (UR, \%) and hourly Cooling Degree Days (CDD, ${}^\circ$C$\cdot$days, base 25${}^\circ$C) to form the provincial condition vector for each year $t$.
+
+% ============================================================
+\section{Data Projection to the Year 2050}
+Projections are carried out from the base year 2025 to the target year 2050 ($\Delta t = 25$ years) using two distinct models chosen based on the inherent characteristics of each variable.
+
+\subsection{RUPTL Consumption Projection: Compound Annual Growth Rate (CAGR)}
+Residential electricity consumption per customer in the RUPTL is assumed to grow exponentially at a constant annual rate. The Compound Annual Growth Rate (CAGR) is calculated from historical data $[t_0, t_f]$:
+\begin{equation}
+\mathrm{CAGR}_i \;=\; \left(\frac{V_{i,t_f}}{V_{i,t_0}}\right)^{\!\frac{1}{t_f - t_0}} - 1,
+\label{eq:cagr}
+\end{equation}
+yielding the 2050 projection:
+\begin{equation}
+E_{\mathrm{RUPTL},\,i,\,2050} \;=\; E_{\mathrm{RUPTL},\,i,\,2025}\,\bigl(1+\mathrm{CAGR}_i\bigr)^{25}.
+\label{eq:proj-ruptl}
+\end{equation}
+The CAGR is selected because historical residential electricity trends exhibit an expansive phase and show no signs of saturation within the data range. The level of CAGR aggregation (national vs. provincial) is documented as an open parameter; the choice of aggregation level directly impacts the members of the anomaly cluster and is reported as a sensitivity test.
+
+\textbf{Limitations.} The CAGR does not capture market saturation or tariff policy shifts. All $\mathrm{EP}_{2050}$ results inherit this assumption; thus, the 2050 clusters are interpreted as \emph{demand-scenario-driven regimes} rather than deterministic forecasts.
+
+\subsection{Urbanization Ratio Projection: Logistic Growth Model (LGM)}
+Unlike electricity consumption, the urbanization ratio is a bounded variable ($0 \le P \le K \le 100\%$), making an exponential model inappropriate. The UR projection utilizes the Logistic Growth Model (LGM) \cite{verhulst1838}:
+\begin{equation}
+\frac{dP}{dt} \;=\; r\,P\!\left(1 - \frac{P}{K}\right),
+\label{eq:lgm-ode}
+\end{equation}
+with the closed-form solution:
+\begin{equation}
+P_i(t) \;=\; \frac{K}{1 + \left(\dfrac{K - P_{i,0}}{P_{i,0}}\right) e^{-r_i (t - t_0)}},
+\label{eq:lgm-closed}
+\end{equation}
+where:
+\begin{itemize}[nosep]
+\item $P_{i,0}$: urbanization ratio of province $i$ at the base year $t_0$ (BPS data);
+\item $K$: saturation limit (carrying capacity), set to $\le 100\%$;
+\item $r_i$: intrinsic growth rate, estimated via regression on historical BPS time series.
+\end{itemize}
+The selection of the LGM provides a deliberate methodological contrast to the CAGR: the LGM represents a demographic variable approaching its saturation limit, whereas the CAGR represents a demand variable still in its expansive phase.
+
+\subsection{Aggregation and Trajectory Metrics}
+From the two projections above, a trajectory vector is constructed for each province:
+\begin{align}
+\Delta\mathrm{EP}_i  &= \mathrm{EP}_{i,2025} - \mathrm{EP}_{i,2050} \quad (\text{positive} \Rightarrow \text{gap narrows/improves}), \label{eq:dep}\\
+\Delta\mathrm{UR}_i  &= \mathrm{UR}_{i,2050} - \mathrm{UR}_{i,2025} \quad \text{[percentage points]}, \label{eq:dur}\\
+\Delta\mathrm{CDD}_i &= \mathrm{CDD}_{i,2050} - \mathrm{CDD}_{i,2025} \quad \text{[}${}^\circ$C$\cdot$days\text{],} \label{eq:dcdd}
+\end{align}
+where $\mathrm{CDD}_{2050}$ is calculated over weather files morphed for the SSP2-4.5 scenario on an hourly basis at 25${}^\circ$C.
+
+% ============================================================
+\section{Silhouette Cluster Analysis}
+Clustering is performed on an $n \times p$ matrix with $n=34$ provinces and $p=3$ variables (on the trajectory layer: $\Delta\mathrm{EP}, \Delta\mathrm{UR}, \Delta\mathrm{CDD}$; on the static layers: $\mathrm{EP}, \mathrm{UR}, \mathrm{CDD}$).
+
+\subsection{Standardization and Distance Metric}
+Because the three variables possess incommensurable units (kWh, percent, ${}^\circ$C$\cdot$days), each column $j$ is standardized into a z-score:
+\begin{equation}
+z_{ij} = \frac{x_{ij} - \bar{x}_j}{s_j}, \qquad s_j = \sqrt{\tfrac{1}{n}\sum_{i=1}^{n}(x_{ij}-\bar{x}_j)^2}.
+\label{eq:zscore}
+\end{equation}
+All subsequent distances are Euclidean in the standardized space,
+\begin{equation}
+d(i,i') = \sqrt{\sum_{j=1}^{p}(z_{ij}-z_{i'j})^2},
+\label{eq:dist}
+\end{equation}
+and the exact same metric is consistently employed by both the clustering algorithm and the silhouette index. Standardization is performed independently per layer; consequently, static layer cluster membership denotes a position \emph{relative to that year's national distribution}, whereas absolute change is analyzed on the trajectory layer.
+
+\subsection{K-Means Algorithm}
+For a given $k$, the algorithm seeks a partition $\mathcal{C} = \{C_1,\dots,C_k\}$ that minimizes the \emph{within-cluster sum of squares} (WCSS):
+\begin{equation}
+W(\mathcal{C}) = \sum_{c=1}^{k} \sum_{i \in C_c} \bigl\| z_i - \mu_c \bigr\|^2,
+\qquad \mu_c = \frac{1}{n_c}\sum_{i \in C_c} z_i.
+\label{eq:wcss}
+\end{equation}
+The solution is obtained via Lloyd's algorithm: centroid initialization via \emph{k-means++}, assignment $c(i) = \arg\min_c \|z_i - \mu_c\|^2$, updating $\mu_c$ as the mean of assigned members, and iterating until convergence. To mitigate the risk of local minima, the procedure is restarted $R = 100$ times, retaining the partition with the lowest $W$; the random seed is locked to a fixed value (seed $= 42$) to ensure full reproducibility.
+
+\subsection{Silhouette Index}
+Partition quality is evaluated using the silhouette index \cite{rousseeuw1987}. For province $i$ in cluster $C_{c(i)}$:
+\begin{align}
+a(i) &= \frac{1}{n_{c(i)}-1}\sum_{\substack{i' \in C_{c(i)}\\ i'\ne i}} d(i,i'),
+\label{eq:a}\\[4pt]
+b(i) &= \min_{c \ne c(i)}\; \frac{1}{n_c}\sum_{i' \in C_c} d(i,i'),
+\label{eq:b}\\[4pt]
+s(i) &= \frac{b(i)-a(i)}{\max\{a(i),\,b(i)\}} \;\in\; [-1,\,1],
+\label{eq:si}
+\end{align}
+with the convention $s(i) = 0$ if $\max\{a,b\} = 0$ (singleton cluster). Values approaching $+1$ indicate compact and isolated placement, $s \approx 0$ indicates a boundary position, and $s < 0$ indicates the province is closer to another cluster than to its own. Aggregations are defined as:
+\begin{equation}
+S_c(k) = \frac{1}{n_c}\sum_{i \in C_c} s(i), \qquad
+S(k)   = \frac{1}{n}\sum_{i=1}^{n} s(i).
+\label{eq:S}
+\end{equation}
+The Kaufman--Rousseeuw interpretation bands \cite{kaufman2009} are adopted as the convention: $> 0.70$ strong; $0.51$--$0.70$ reasonable; $0.26$--$0.50$ weak but real; $\le 0.25$ no substantial structure.
+
+\subsection{Procedure for Determining the Number of Clusters $k$}
+A sweep is conducted over $k \in \{2,3,4,5,6\}$. A candidate $k$ is deemed admissible only if it passes the following screening rules:
+\begin{itemize}[nosep]
+\item[\textbf{C1}] No degenerate clusters: $n_c \ge 2$ for all $c$;
+\item[\textbf{C2}] Minimum cohesion: $\min_c S_c(k) \ge 0.25$;
+\item[\textbf{C3}] Stability (reported): Bootstrap ARI and cross-method ARI (K-Means vs. Ward);
+\item[\textbf{C4}] Theoretical admissibility: the partition must separate a priori postulated regimes (on the trajectory layer: gap-widening, steady-adaptation, RUPTL-projection-anomaly, EPW-artifact).
+\end{itemize}
+Among admissible candidates, the optimal $k$ is selected via:
+\begin{equation}
+k^\ast = \arg\max_{k \text{ admissible}} S(k).
+\label{eq:kstar}
+\end{equation}
+The C1--C4 screening is necessary because unconstrained maximization of $S(k)$ can yield a solution that merely isolates extreme outliers against one large, heterogeneous cluster --- a numerically superior but analytically uninformative solution.
+
+\subsection{Cluster Characterization}
+Each cluster $c$ is characterized by its standardized centroid:
+\begin{equation}
+m_{cj} = \frac{1}{n_c}\sum_{i \in C_c} z_{ij},
+\label{eq:centroid}
+\end{equation}
+which is back-transformed to physical units via $\bar{x}_{cj} = \bar{x}_j + s_j\,m_{cj}$. Qualitative labels are assigned using a threshold convention of $|m_{cj}| \ge 0.5$ (High/Low, otherwise Moderate), and the label patterns are mapped to conceptual names via a hypothesis map established \emph{prior} to labeling --- ensuring cluster naming is an interpretation of tested structure, not a post-hoc construction.
+
+% ============================================================
+\section{Summary of the Computational Workflow}
+The entire procedure is executed as a unified pipeline:
+\begin{enumerate}[nosep]
+\item Load the panel $X \in \mathbb{R}^{34 \times 3}$ for the selected layer.
+\item Compute the delta matrix (Equations \ref{eq:dep}--\ref{eq:dcdd}) for the trajectory layer.
+\item Standardize per column (Equation \ref{eq:zscore}).
+\item For each $k \in \{2,\dots,6\}$: run K-Means ($R=100$, seed $=42$), compute $S(k)$ (Equation \ref{eq:S}).
+\item Screen candidates using C1--C4; select $k^\ast$ (Equation \ref{eq:kstar}).
+\item For $k^\ast$, compute centroids (Equation \ref{eq:centroid}), qualitative labels, and conceptual names; save memberships, per-province silhouettes, and centroid tables.
+\item On the trajectory layer, the cluster results are mapped to a cluster--policy intervention matrix as the primary output of the research.
+\end{enumerate}
+
+% ============================================================
+\section*{Methodological Honesty Notes}
+\addcontentsline{toc}{section}{Methodological Honesty Notes}
+\begin{enumerate}[nosep]
+\item Given $n=34$ and the continuous nature of geographical data, the $S(k)$ values on the trajectory layer fall within the ``weak but real'' band; this reflects the spatial gradation of provinces, not an algorithmic failure.
+\item Static layers are standardized per year, meaning inter-year label shifts conflate provincial change with reference-frame shifts; honest cross-year analysis is performed on the trajectory layer.
+\item $\mathrm{EP}_{2050}$ inherits RUPTL projection assumptions (CAGR); thus, 2050 and trajectory clusters are interpreted as scenario-driven regimes, with alternative projection methods reported as sensitivity checks.
+\item Two known data artifacts are treated as distinct anomaly clusters rather than population regimes: (a) high RUPTL CAGR projections for Bali, South Sumatra, and DIY; (b) highland EPW file biases for West Java and DIY.
+\end{enumerate}
+
+% ============================================================
+\begin{thebibliography}{9}
+\bibitem{verhulst1838}
+Verhulst, P.-F. (1838).
+Notice sur la loi que la population suit dans son accroissement.
+\emph{Correspondance Mathématique et Physique}, 10, 113--121.
+
+\bibitem{rousseeuw1987}
+Rousseeuw, P. J. (1987).
+Silhouettes: a graphical aid to the interpretation and validation of cluster analysis.
+\emph{Journal of Computational and Applied Mathematics}, 20, 53--65.
+
+\bibitem{kaufman2009}
+Kaufman, L., \& Rousseeuw, P. J. (2009).
+\emph{Finding Groups in Data: An Introduction to Cluster Analysis}. Wiley.
+
+\bibitem{ashrae2021}
+ASHRAE. (2021). \emph{ASHRAE Handbook --- Fundamentals}. Chapters 9, 18.
+
+\bibitem{sni6389}
+National Standardization Agency (BSN). (2020). \emph{SNI 6389:2020 --- Energy Conservation of Building Envelopes} [Indonesian National Standard].
+
+\bibitem{sni6390}
+National Standardization Agency (BSN). (2020). \emph{SNI 6390:2020 --- Energy Conservation of Air Conditioning Systems} [Indonesian National Standard].
+
+\bibitem{perpres21}
+President of the Republic of Indonesia. (2023). \emph{Presidential Regulation No. 21 of 2023}.
+\end{thebibliography}
+
+\vfill
+\noindent\rule{\textwidth}{0.4pt}\\[4pt]
+\footnotesize
+\textbf{Contact:} Rayhan Rusyd $\cdot$ \texttt{rusydrayhan@gmail.com} $\cdot$ Engineering Physics, Institut Teknologi Bandung.\\
+This document is a supplementary technical note and is not a peer-reviewed manuscript. The computational code reproducing all reported results is available in the accompanying repository.
+
+\end{document}

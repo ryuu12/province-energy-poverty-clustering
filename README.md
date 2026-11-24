@@ -19,6 +19,21 @@ Degree Days (CDD, base 25 °C; 2050 = morphed SSP2-4.5), we cluster provinces
 (ΔEP, ΔUR, ΔCDD), to obtain groups that can be mapped to differentiated
 energy-policy interventions.
 
+## Documentation & Mathematical Formulation
+
+For a rigorous mathematical explanation of the methods used in this repository, please refer to the technical note provided in the `docs/` folder:
+
+📄 **`docs/projection_cluster_notes.tex`** (PDF also available on the same directory).
+
+This document details:
+1. **Data Projections to 2050:**
+   - **Compound Annual Growth Rate (CAGR)** formulation for RUPTL electricity consumption projections.
+   - **Logistic Growth Model (LGM)** formulation for Urbanization Ratio (UR) projections.
+2. **Silhouette Cluster Analysis:**
+   - Z-score standardization and Euclidean distance metrics.
+   - K-Means algorithm formulation (WCSS minimization).
+   - Silhouette coefficient equations ($a(i)$, $b(i)$, $s(i)$) and the statistical screening rules (C1-C4) used to select the optimal $k$.
+
 ## Data
 
 `data/province_panel.csv` (34 rows) — see `data/DATA_NOTE.md` for provenance,
